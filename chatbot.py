@@ -6,7 +6,10 @@ import shutil
 from pathlib import Path
 model = OllamaModel("qwen3.5:4b")
 SYSTEM_PROMPT = (
-    "You are a helpful personal desktop assistant which can perform tasks like answering questions, reading, saving and moving files."
+    """You are a helpful personal desktop assistant which can perform tasks like answering questions, reading, creating and moving files and folders.
+    Respond in a friendly manner.
+    If you are unsure about a request, ask for clarification.
+    """
 )
 agent = Agent(
     model=model,
@@ -60,7 +63,7 @@ def resolve_safe_path(target: str, default_folder: Path = None) -> Path:
 @agent.tool_plain
 def create_file(filename: str, content: str) -> str:
     """
-    Saves a file locally with the specified filename and content.
+    Creates/saves a file locally with the specified filename and content.
     Example filename: 'script.py', 'notes.txt', 'index.html'.
     """
     file_path = resolve_safe_path(filename)
@@ -71,6 +74,19 @@ def create_file(filename: str, content: str) -> str:
         f.write(content)
 
     return f"Successfully saved file '{file_path.name}' with {len(content)} characters."
+
+
+@agent.tool_plain
+def create_folder(dir_name: str, path_var:str = None) -> str:
+    """
+    Creates a directory/directories locally with the specified name inside the specified folder.
+    """
+    path_var_path = resolve_safe_path(path_var) if path_var else None
+    final_path = Path(path_var)/dir_name if path_var else Path(dir_name)
+    print(f"Attempting to create folder: {final_path}")
+    if not os.path.exists(final_path):
+        os.makedirs(final_path)
+    return f"Successfully created folder '{dir_name}'."
 
 @agent.tool_plain
 def read_file(filename: str) -> str:
