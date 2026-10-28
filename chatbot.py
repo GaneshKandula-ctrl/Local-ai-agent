@@ -13,7 +13,6 @@ agent = Agent(
     system_prompt=SYSTEM_PROMPT,
 )
 
-# 1. Register recognized workspace aliases
 KNOWN_FOLDERS = {
     "documents": Path.home() / "Documents",
     "downloads": Path.home() / "Downloads",
@@ -21,11 +20,9 @@ KNOWN_FOLDERS = {
     "workspace": Path.cwd(),
 }
 
-# 2. Allow both the user's home profile and your active drive/workspace
 ALLOWED_ROOTS = [
-    Path.home(),                   # Usually C:\Users\<Username>
-    Path.cwd(),                    # Current working folder on D:
-    Path("D:/Coding"),             # Explicitly allow your D: coding drive/folder
+    Path.home(),
+    Path.cwd(),
 ]
 
 def resolve_safe_path(target: str, default_folder: Path = None) -> Path:
@@ -33,11 +30,13 @@ def resolve_safe_path(target: str, default_folder: Path = None) -> Path:
     Resolves folder aliases or paths and ensures the target resides 
     within designated safe drive/folder boundaries.
     """
+    print(f"Resolving path for target: {target}")
     target_clean = target.strip().lower()
-
+    target_clean = target_clean.split("/",1)
+    print(f"Cleaned target: {target_clean}")
     # Check alias first (e.g., 'documents', 'downloads')
-    if target_clean in KNOWN_FOLDERS:
-        return KNOWN_FOLDERS[target_clean]
+    if target_clean[0] in KNOWN_FOLDERS:
+        return KNOWN_FOLDERS[target_clean[0]].joinpath(*target_clean[1:]).resolve()
 
     path = Path(target).expanduser()
 
@@ -79,7 +78,9 @@ def read_file(filename: str) -> str:
     Reads a file from local storage using its filename.
     Example filename: 'script.py', 'notes.txt'.
     """
+    print(f"Attempting to read file: {filename}")
     file_path = resolve_safe_path(filename)
+    print(f"Resolved file path: {file_path}")
     if not file_path.exists() and not file_path.suffix:
         file_path = file_path.with_suffix(".txt")
 
@@ -96,8 +97,10 @@ def list_folder_contents(folder_path: str = "downloads") -> str:
     Lists all files and subdirectories inside a given folder.
     Accepts aliases like 'downloads', 'documents', 'desktop', or a valid folder path.
     """
+    print(f"Attempting to list contents of folder: {folder_path}")
     try:
         path = resolve_safe_path(folder_path)
+        print(f"Resolved folder path: {path}")
         if not path.exists() or not path.is_dir():
             return f"Folder '{folder_path}' does not exist or is not a directory."
 
@@ -115,6 +118,7 @@ def move_file(source_file_path: str, destination_folder_path: str) -> str:
     Moves an individual file to a target destination folder.
     Creates the destination folder automatically if it doesn't exist.
     """
+    print(f"Attempting to move file: {source_file_path}")
     try:
         src = resolve_safe_path(source_file_path)
         dest_folder = resolve_safe_path(destination_folder_path)
