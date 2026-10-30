@@ -33,7 +33,7 @@ def log_tool(message: str):
         _gui_logger_callback(formatted)
 
 
-def resolve_safe_path(target: str, default_folder: Optional[Path] = None) -> Path:
+def resolve_safe_path(target: str, default_folder: Optional[Path] = Path.home() / "Desktop") -> Path:
     log_tool(f"Resolving path: '{target}'")
     target_clean = target.strip().replace("\\", "/").lower()
     parts = target_clean.split("/", 1)
@@ -87,10 +87,10 @@ def create_file(filename: str, content: str) -> str:
 
         res = f"Saved '{file_path.name}' ({len(content)} chars) in {file_path.parent}"
         log_tool(f"Success: {res}")
-        return res
+        return f"Successfully created '{filename}' at {file_path.parent}."
     except Exception as e:
         log_tool(f"Error in create_file: {e}")
-        return f"Error creating file: {e}"
+        return f"Error creating file."
 
 
 @agent.tool_plain
@@ -103,10 +103,10 @@ def create_folder(dir_name: str, path_var: str = None) -> str:
         final_path.mkdir(parents=True, exist_ok=True)
         res = f"Created directory '{final_path.name}' at {final_path.parent}"
         log_tool(f"Success: {res}")
-        return res
+        return f"Successfully created directory '{dir_name}' at {final_path.parent}."
     except Exception as e:
         log_tool(f"Error in create_folder: {e}")
-        return f"Error: {e}"
+        return f"Error creating directory."
 
 
 @agent.tool_plain
@@ -121,10 +121,10 @@ def read_file(filename: str) -> str:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
         log_tool(f"Read {len(content)} characters from '{file_path.name}'")
-        return f"Content of '{file_path.name}':\n{content}"
+        return f"Content of '{filename}':\n{content}"
     except Exception as e:
         log_tool(f"Error in read_file: {e}")
-        return f"Error reading file '{filename}': {e}"
+        return f"Error reading file '{filename}'"
 
 
 @agent.tool_plain
@@ -138,10 +138,10 @@ def list_folder_contents(folder_path: str = "downloads") -> str:
 
         items = [f"{'[DIR]' if p.is_dir() else '[FILE]'} {p.name}" for p in path.iterdir()]
         log_tool(f"Found {len(items)} items in '{path.name}'")
-        return f"Contents of {path.name}:\n" + "\n".join(items[:50])
+        return f"Contents of '{folder_path}':\n" + "\n".join(items[:50])
     except Exception as e:
         log_tool(f"Error in list_folder_contents: {e}")
-        return f"Error: {e}"
+        return f"Error listing contents of folder '{folder_path}'"
 
 
 @agent.tool_plain
@@ -161,10 +161,10 @@ def move_file(source_file_path: str, destination_folder_path: str) -> str:
         shutil.move(str(src), str(dest_file))
         res = f"Moved '{src.name}' -> '{dest_folder.name}/'"
         log_tool(f"Success: {res}")
-        return res
+        return f"Successfully moved '{src.name}' to '{dest_folder}'."
     except Exception as e:
         log_tool(f"Error in move_file: {e}")
-        return f"Error moving file: {e}"
+        return f"Error moving file '{source_file_path}' to '{destination_folder_path}'"
 
 
 # ---------------------------------------------------------
