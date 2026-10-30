@@ -23,15 +23,14 @@ KNOWN_FOLDERS = {
 ALLOWED_ROOTS = [
     Path.home(),
     Path.cwd(),
-    Path("D:/Coding"),  # Allow your D: drive projects
+    Path("D:/Coding"),
 ]
 
-# Global logger hook for the GUI
 _gui_logger_callback = None
 
 
 def log_tool(message: str):
-    """Logs tool events to both the terminal and the GUI activity panel."""
+    """Logs tool events to terminal and GUI monitor."""
     timestamp = datetime.now().strftime("%H:%M:%S")
     formatted = f"[{timestamp}] {message}"
     print(formatted)
@@ -58,7 +57,6 @@ def resolve_safe_path(target: str, default_folder: Optional[Path] = None) -> Pat
 
     resolved = path.resolve()
 
-    # Safety check
     is_safe = any(
         str(resolved).lower().startswith(str(root.resolve()).lower())
         for root in ALLOWED_ROOTS
@@ -146,7 +144,7 @@ def read_file(filename: str) -> str:
 
 @agent.tool_plain
 def list_folder_contents(folder_path: str = "downloads") -> str:
-    """Lists files and directories inside a given folder (e.g., 'downloads', 'documents')."""
+    """Lists files and directories inside a given folder."""
     log_tool(f"Tool Invoked: list_folder_contents('{folder_path}')")
     try:
         path = resolve_safe_path(folder_path)
@@ -196,18 +194,16 @@ class LocalAIAssistantGUI(ctk.CTk):
         super().__init__()
 
         self.title("Local AI Desktop Assistant")
-        self.geometry("1150x720")
+        self.geometry("1150x740")
         self.minsize(900, 600)
         self.configure(fg_color="#181818")
 
         self.conversation_history = []
         self.is_generating = False
 
-        # Hook logger callback
         global _gui_logger_callback
         _gui_logger_callback = self.append_tool_log
 
-        # Grid layout: Column 0 = Chat Area, Column 1 = Tool Activity Panel
         self.grid_columnconfigure(0, weight=3)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -216,9 +212,8 @@ class LocalAIAssistantGUI(ctk.CTk):
         self._build_log_panel()
 
     def _build_chat_panel(self):
-        """Constructs the left/main chat area matching the screenshot."""
         self.chat_container = ctk.CTkFrame(self, fg_color="#181818", corner_radius=0)
-        self.chat_container.grid(row=0, column=0, sticky="nsew", padx=(15, 10), pady=15)
+        self.chat_container.grid(row=0, column=0, sticky="nsew", padx=(20, 10), pady=15)
         self.chat_container.grid_rowconfigure(0, weight=1)
         self.chat_container.grid_columnconfigure(0, weight=1)
 
@@ -228,7 +223,7 @@ class LocalAIAssistantGUI(ctk.CTk):
         )
         self.chat_box.grid(row=0, column=0, sticky="nsew", pady=(0, 15))
 
-        # Centered Placeholder Logo (Like the Llama icon in the image)
+        # Centered Placeholder Logo
         self.welcome_frame = ctk.CTkFrame(self.chat_box, fg_color="transparent")
         self.welcome_frame.pack(expand=True, pady=120)
 
@@ -252,7 +247,7 @@ class LocalAIAssistantGUI(ctk.CTk):
         )
         self.welcome_text.pack()
 
-        # --- FLOATING BOTTOM INPUT CAPSULE (Matching the image) ---
+        # Floating Bottom Input Capsule
         self.input_card = ctk.CTkFrame(
             self.chat_container,
             fg_color="#242424",
@@ -263,7 +258,6 @@ class LocalAIAssistantGUI(ctk.CTk):
         self.input_card.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 5))
         self.input_card.grid_columnconfigure(1, weight=1)
 
-        # '+' Action Button
         self.plus_btn = ctk.CTkButton(
             self.input_card,
             text="+",
@@ -278,10 +272,9 @@ class LocalAIAssistantGUI(ctk.CTk):
         )
         self.plus_btn.grid(row=0, column=0, padx=(10, 5), pady=8)
 
-        # Text Input Field
         self.entry = ctk.CTkEntry(
             self.input_card,
-            placeholder_text="Send a message or command...",
+            placeholder_text="Send a message...",
             placeholder_text_color="#6e6e6e",
             font=ctk.CTkFont(size=14),
             fg_color="transparent",
@@ -291,7 +284,6 @@ class LocalAIAssistantGUI(ctk.CTk):
         self.entry.grid(row=0, column=1, sticky="ew", padx=8, pady=8)
         self.entry.bind("<Return>", lambda event: self.send_message())
 
-        # Model Selector Dropdown (Pill style)
         self.model_selector = ctk.CTkOptionMenu(
             self.input_card,
             values=["qwen3.5:4b", "llama3.2", "qwen2.5:3b", "qwen3:8b"],
@@ -308,7 +300,6 @@ class LocalAIAssistantGUI(ctk.CTk):
         self.model_selector.set("qwen3.5:4b")
         self.model_selector.grid(row=0, column=2, padx=(5, 6), pady=8)
 
-        # Send Button (Upward arrow circle button)
         self.send_btn = ctk.CTkButton(
             self.input_card,
             text="↑",
@@ -324,7 +315,6 @@ class LocalAIAssistantGUI(ctk.CTk):
         self.send_btn.grid(row=0, column=3, padx=(4, 10), pady=8)
 
     def _build_log_panel(self):
-        """Constructs the right-hand panel for real-time tool logs & activity inspection."""
         self.log_container = ctk.CTkFrame(
             self,
             fg_color="#1e1e1e",
@@ -336,7 +326,6 @@ class LocalAIAssistantGUI(ctk.CTk):
         self.log_container.grid_rowconfigure(1, weight=1)
         self.log_container.grid_columnconfigure(0, weight=1)
 
-        # Header with Title and Clear Button
         header_frame = ctk.CTkFrame(self.log_container, fg_color="transparent")
         header_frame.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 6))
         header_frame.grid_columnconfigure(0, weight=1)
@@ -362,7 +351,6 @@ class LocalAIAssistantGUI(ctk.CTk):
         )
         clear_btn.grid(row=0, column=1, sticky="e")
 
-        # Scrollable Text Area for Logs
         self.log_textbox = ctk.CTkTextbox(
             self.log_container,
             fg_color="#141414",
@@ -374,16 +362,92 @@ class LocalAIAssistantGUI(ctk.CTk):
             border_color="#262626",
         )
         self.log_textbox.grid(row=1, column=0, sticky="nsew", padx=10, pady=(4, 10))
-        self.log_textbox.insert(
-            "end", "System ready. Local model listener active.\n"
-        )
+        self.log_textbox.insert("end", "System ready. Local model listener active.\n")
         self.log_textbox.configure(state="disabled")
 
     # ---------------------------------------------------------
-    # 4. EVENT HANDLERS & ASYNC STREAMING
+    # 4. MESSAGE DISPLAY (CLEAN PROSE / NO ASSISTANT BOXES)
+    # ---------------------------------------------------------
+    def add_user_message(self, text: str):
+        """Displays user prompt as a soft rounded capsule on the right side."""
+        if self.welcome_frame.winfo_ismapped():
+            self.welcome_frame.pack_forget()
+
+        row_frame = ctk.CTkFrame(self.chat_box, fg_color="transparent")
+        row_frame.pack(fill="x", pady=(10, 14), padx=(40, 10), anchor="e")
+
+        bubble = ctk.CTkFrame(
+            row_frame,
+            fg_color="#262626",
+            corner_radius=18,
+            border_width=0,
+        )
+        bubble.pack(anchor="e")
+
+        label = ctk.CTkLabel(
+            bubble,
+            text=text,
+            font=ctk.CTkFont(size=14),
+            text_color="#e5e5e5",
+            wraplength=520,
+            justify="left",
+        )
+        label.pack(padx=16, pady=9)
+        self.chat_box._parent_canvas.yview_moveto(1.0)
+
+    def add_assistant_message(self) -> tuple[ctk.CTkLabel, ctk.CTkButton]:
+        """Displays assistant response as borderless, clean text on the left side."""
+        if self.welcome_frame.winfo_ismapped():
+            self.welcome_frame.pack_forget()
+
+        msg_frame = ctk.CTkFrame(self.chat_box, fg_color="transparent")
+        msg_frame.pack(fill="x", pady=(6, 16), padx=(10, 30), anchor="w")
+
+        # Plain text label directly on canvas (no background, no box)
+        text_label = ctk.CTkLabel(
+            msg_frame,
+            text="",
+            font=ctk.CTkFont(size=14),
+            text_color="#dedede",
+            wraplength=600,
+            justify="left",
+            anchor="w",
+        )
+        text_label.pack(anchor="w", fill="x", padx=4, pady=(2, 6))
+
+        # Action bar underneath with a subtle copy button
+        action_bar = ctk.CTkFrame(msg_frame, fg_color="transparent")
+        action_bar.pack(anchor="w", padx=4)
+
+        copy_btn = ctk.CTkButton(
+            action_bar,
+            text="📋",
+            font=ctk.CTkFont(size=12),
+            width=28,
+            height=24,
+            fg_color="transparent",
+            hover_color="#262626",
+            text_color="#777777",
+            corner_radius=6,
+        )
+        # Store callback hook once text finishes generating
+        copy_btn.configure(command=lambda: self._copy_to_clipboard(text_label.cget("text"), copy_btn))
+        copy_btn.pack(side="left")
+
+        self.chat_box._parent_canvas.yview_moveto(1.0)
+        return text_label, copy_btn
+
+    def _copy_to_clipboard(self, content: str, button: ctk.CTkButton):
+        self.clipboard_clear()
+        self.clipboard_append(content)
+        button.configure(text="✓")
+        self.after(1500, lambda: button.configure(text="📋"))
+
+    # ---------------------------------------------------------
+    # 5. EVENT HANDLERS & INFERENCE WORKER
     # ---------------------------------------------------------
     def _on_plus_clicked(self):
-        log_tool("Action: Opened quick actions menu (placeholder for attachments).")
+        log_tool("Action: Opened quick actions menu.")
 
     def _on_model_change(self, selected_model: str):
         global agent
@@ -398,7 +462,6 @@ class LocalAIAssistantGUI(ctk.CTk):
         self.log_textbox.configure(state="disabled")
 
     def append_tool_log(self, text: str):
-        """Thread-safe log insertion into the log panel."""
         def _update():
             self.log_textbox.configure(state="normal")
             self.log_textbox.insert("end", text + "\n")
@@ -406,44 +469,6 @@ class LocalAIAssistantGUI(ctk.CTk):
             self.log_textbox.configure(state="disabled")
 
         self.after(0, _update)
-
-    def add_message(self, role: str, text: str) -> ctk.CTkLabel:
-        """Appends a bubble to the chat feed."""
-        if self.welcome_frame.winfo_ismapped():
-            self.welcome_frame.pack_forget()
-
-        is_user = role == "User"
-        bubble_frame = ctk.CTkFrame(
-            self.chat_box,
-            fg_color="#2b2b2b" if is_user else "#1f2428",
-            corner_radius=12,
-        )
-        bubble_frame.pack(
-            fill="x",
-            padx=12,
-            pady=6,
-            anchor="e" if is_user else "w",
-        )
-
-        sender_label = ctk.CTkLabel(
-            bubble_frame,
-            text="You" if is_user else "Assistant",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color="#3b8ed0" if is_user else "#2ecc71",
-        )
-        sender_label.pack(anchor="w", padx=12, pady=(6, 2))
-
-        msg_label = ctk.CTkLabel(
-            bubble_frame,
-            text=text,
-            font=ctk.CTkFont(size=13),
-            text_color="#f0f0f0",
-            wraplength=600,
-            justify="left",
-        )
-        msg_label.pack(anchor="w", padx=12, pady=(0, 8))
-        self.chat_box._parent_canvas.yview_moveto(1.0)
-        return msg_label
 
     def send_message(self):
         if self.is_generating:
@@ -454,39 +479,33 @@ class LocalAIAssistantGUI(ctk.CTk):
             return
 
         self.entry.delete(0, "end")
-        self.add_message("User", user_text)
+        self.add_user_message(user_text)
 
-        # Assistant placeholder label for streaming
-        assistant_bubble = self.add_message("Assistant", "Thinking...")
+        # Create borderless left-aligned label for streaming assistant reply
+        response_label, copy_btn = self.add_assistant_message()
         self.is_generating = True
         self.send_btn.configure(state="disabled")
 
-        # Run model inference in a background thread to prevent UI freezing
         threading.Thread(
             target=self._run_inference_worker,
-            args=(user_text, assistant_bubble),
+            args=(user_text, response_label),
             daemon=True,
         ).start()
 
     def _run_inference_worker(self, user_text: str, label_widget: ctk.CTkLabel):
         accumulated_text = ""
-        first_chunk = True
-
         try:
             with agent.run_stream_sync(
                 user_text, message_history=self.conversation_history
             ) as result:
                 for chunk in result.stream_text(delta=True):
-                    if first_chunk:
-                        accumulated_text = chunk
-                        first_chunk = False
-                    else:
-                        accumulated_text += chunk
-
-                    # Stream text to GUI
+                    accumulated_text += chunk
                     self.after(
                         0,
-                        lambda txt=accumulated_text: label_widget.configure(text=txt),
+                        lambda txt=accumulated_text: (
+                            label_widget.configure(text=txt),
+                            self.chat_box._parent_canvas.yview_moveto(1.0),
+                        ),
                     )
 
                 self.conversation_history = result.all_messages()
