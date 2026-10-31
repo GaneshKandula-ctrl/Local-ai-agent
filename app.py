@@ -11,6 +11,36 @@ from pydantic_ai import Agent
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.providers.ollama import OllamaProvider
 
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+from email.mime.text import MIMEText
+import base64
+
+# EMAIL CONFIGURATION
+
+SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
+GMAIL_USE = 0
+
+def get_gmail_client():
+    """Checks, refreshes, and returns a valid Gmail service instance."""
+    creds = None
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+        
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+            
+    return build('gmail', 'v1', credentials=creds)
+
 # ---------------------------------------------------------
 # 1. PATH SECURITY & WORKSPACE CONFIGURATION
 # ---------------------------------------------------------
@@ -65,12 +95,157 @@ model = OllamaModel(CURRENT_MODEL, provider=provider)
 
 SYSTEM_PROMPT = (
     "You are a helpful personal desktop assistant which can perform tasks like "
-    "answering questions, reading, creating, and moving files and folders. "
-    "Respond in a friendly, concise manner. Call tools only when explicitly required."
+    "answering questions, handling files and folders and emails. "
+    "Respond in a friendly manner, use emojis to express emotions. Ask and confirm questions if needed, and avoid making assumptions."
+    "Call tools only when explicitly required."
 )
 
 agent = Agent(model=model, system_prompt=SYSTEM_PROMPT)
 
+
+@agent.tool_plain
+def get_emails(query="label:INBOX", max_results=1):
+    """
+    Searches for emails and returns a list of dictionaries with content.
+    Query examples: 'is:unread', 'from:boss@company.com', 'subject:report'
+    """
+    log_tool(f"Tool Invoked: get_emails(query = '{query}', max_results = {max_results})")
+    try:
+        service = get_gmail_client()
+        results = service.users().messages().list(userId='me', q=query, maxResults=max_results).execute()
+        messages = results.get('messages', [])
+        
+        email_list = []
+        for msg in messages:
+            # Fetch full details for each message
+            txt = service.users().messages().get(userId='me', id=msg['id'], format='full').execute()
+            payload = txt.get('payload', {})
+            headers = payload.get('headers', [])
+            
+            # Extract Subject and From fields
+            subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), '(No Subject)')
+            sender = next((h['value'] for h in headers if h['name'].lower() == 'from'), '(Unknown Sender)')
+            
+            # Extract body text
+            body = ""
+            if 'parts' in payload:
+                for part in payload['parts']:
+                    if part['mimeType'] == 'text/plain' and 'data' in part['body']:
+                        body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                        break
+            elif 'body' in payload and 'data' in payload['body']:
+                body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8')
+                
+            email_list.append({
+                "id": msg['id'],
+                "from": sender,
+                "subject": subject,
+                "snippet": txt.get('snippet', ''),
+                "body": body.strip()
+            })
+        log_tool(f"Successfully retrieved emails: {len(email_list)}")
+        return email_list
+        
+    except Exception as e:
+        log_tool(f"Error fetching emails: {e}")
+        return []
+    
+@agent.tool_plain
+def send_email(to_email, subject, body_text):
+    """Creates and sends an email to a specific recipient."""
+    log_tool(f"Tool Invoked: send_email(to='{to_email}', subject='{subject}')")
+    try:
+        service = get_gmail_client()
+        message = MIMEText(body_text)
+        message['to'] = to_email
+        message['subject'] = subject
+        
+        # Encode the message in base64 string format required by Gmail API
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+        
+        send_request = service.users().messages().send(
+            userId='me',
+            body={'raw': raw_message}
+        ).execute()
+        
+        log_tool(f"Email sent successfully! Message ID: {send_request['id']}")
+        return f"Email sent successfully! Message ID: {send_request['id']}"
+        
+    except Exception as e:
+        log_tool(f"Error sending email: {e}")
+        return f"Failed to send email: {e}"
+
+@agent.tool_plain
+def reply_to_email(original_email_id, reply_text):
+    """Replies directly to an existing email thread using its original message ID."""
+    log_tool(f"Tool Invoked: reply_to_email(original_id='{original_email_id}')")
+    try:
+        service = get_gmail_client()
+        # 1. Fetch the original email to extract necessary thread details
+        orig_msg = service.users().messages().get(userId='me', id=original_email_id).execute()
+        thread_id = orig_msg['threadId']
+        headers = orig_msg['payload']['headers']
+        
+        # 2. Find who to send the reply back to (the sender of the original email)
+        to_email = next((h['value'] for h in headers if h['name'].lower() == 'from'), None)
+        subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), '')
+        
+        if not to_email:
+            return "Could not determine recipient from the original email."
+            
+        # Ensure subject starts with 'Re:' if it doesn't already
+        if not subject.lower().startswith('re:'):
+            subject = f"Re: {subject}"
+            
+        # 3. Construct the reply message
+        message = MIMEText(reply_text)
+        message['to'] = to_email
+        message['subject'] = subject
+        
+        # Mandatory headers to link the email to the original thread
+        message['In-Reply-To'] = original_email_id
+        message['References'] = original_email_id
+        
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+        
+        # 4. Send the message attached to the same threadId
+        reply_request = service.users().messages().send(
+            userId='me',
+            body={
+                'raw': raw_message,
+                'threadId': thread_id
+            }
+        ).execute()
+        log_tool(f"Reply sent successfully! Message ID: {reply_request['id']} under thread: {thread_id}")
+        return f"Reply sent successfully under thread: {thread_id}"
+        
+    except Exception as e:
+        log_tool(f"Error replying to email: {e}")
+        return f"Failed to send reply: {e}"
+
+@agent.tool_plain
+def read_full_email_body(message_id):
+    """Fetch the complete text body of a specific email using its message ID."""
+    log_tool(f"Tool Invoked: read_full_email_body(message_id='{message_id}')")
+    try:
+        service = get_gmail_client()
+        txt = service.users().messages().get(userId='me', id=message_id, format='full').execute()
+        payload = txt.get('payload', {})
+        
+        # Helper logic to extract body from plain text or multipart emails
+        body = ""
+        if 'parts' in payload:
+            for part in payload['parts']:
+                if part['mimeType'] == 'text/plain':
+                    body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                    break
+        else:
+            body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8')    
+        log_tool(f"Successfully retrieved full email body for message ID: {message_id}")
+        return body
+    except Exception as e:
+        log_tool(f"Error retrieving full email: {e}")
+        return f"Failed to retrieve email body: {e}"
 
 @agent.tool_plain
 def create_file(filename: str, content: str) -> str:
