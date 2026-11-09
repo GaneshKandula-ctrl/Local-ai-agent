@@ -6,6 +6,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import subprocess
+import os
+import platform
+import psutil
+
 import customtkinter as ctk
 from pydantic_ai import Agent
 from pydantic_ai.models.ollama import OllamaModel
@@ -102,6 +107,13 @@ SYSTEM_PROMPT = (
 
 agent = Agent(model=model, system_prompt=SYSTEM_PROMPT)
 
+@agent.tool_plain
+def get_current_time():
+    """Returns the current local time as a formatted string."""
+    log_tool("Tool Invoked: get_current_time()")
+    now = datetime.now()
+    current_time = now.strftime("%Y-%m-%d %H:%M:%S")
+    return current_time
 
 @agent.tool_plain
 def get_emails(query="label:INBOX", max_results=1):
@@ -266,6 +278,145 @@ def create_file(filename: str, content: str) -> str:
     except Exception as e:
         log_tool(f"Error in create_file: {e}")
         return f"Error creating file."
+
+@agent.tool_plain
+def launch_application(app_name: str) -> str:
+    """
+    Opens a desktop application by name.
+    Args:
+        app_name : The common name of the application (e.g., 'notepad', 'calculator', 'chrome', 'finder').
+    """
+    log_tool(f"Tool Invoked: launch_application(app_name='{app_name}')")
+    current_os = platform.system().lower()
+    try:
+        if current_os == "windows":
+            # Common Windows mappings
+            win_apps = {
+                "notepad": "notepad.exe",
+                "calculator": "calc.exe",
+                "chrome": "C:\Program Files\Google\Chrome\Application\chrome.exe",
+                "edge": "msedge.exe"
+            }
+            target = win_apps.get(app_name.lower(), app_name)
+            subprocess.Popen(target, shell=True)
+            
+        elif current_os == "darwin":  # macOS
+            # macOS can natively open apps by name using the 'open' command
+            subprocess.Popen(["open", "-a", app_name])
+            
+        else:  # Linux
+            subprocess.Popen([app_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        log_tool(f"Successfully issued command to open '{app_name}'")
+        return f"Successfully issued command to open '{app_name}'."
+    except Exception as e:
+        log_tool(f"Error in launch_application: {e}")
+        return f"Failed to open '{app_name}'. Error: {str(e)}"
+@agent.tool_plain
+def get_resource_usage() -> str:
+    """Returns the current CPU percentage, RAM percentage, and available memory on the system."""
+    log_tool("Tool Invoked: get_resource_usage()")
+    try:
+        cpu_pct = psutil.cpu_percent(interval=0.5)  # 0.5s sample interval
+        memory = psutil.virtual_memory()
+        gb = 1024 ** 3
+        log_tool(f"Resource Usage - CPU: {cpu_pct}%, RAM: {memory.percent}%")
+        return (
+            f" Resource Stats:\n"
+            f"- CPU Usage: {cpu_pct}%\n"
+            f"- RAM Usage: {memory.percent}%\n"
+            f"- Available RAM: {memory.available / gb:.2f} GB / {memory.total / gb:.2f} GB"
+        )
+    except Exception as e:
+        log_tool(f"Error retrieving resource usage: {e}")
+        return f"Error retrieving resource usage: {str(e)}"
+@agent.tool_plain
+def list_running_processes(limit: int = 10) -> str:
+    """
+    Lists top running processes sorted by high memory usage.
+    Args:
+        limit: The number of top processes to return. Defaults to 10.
+    """
+    log_tool(f"Tool Invoked: list_running_processes(limit={limit})")
+    try:
+        processes = []
+        for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
+            try:
+                processes.append(proc.info)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+                
+        # Sort by memory usage descending
+        sorted_procs = sorted(processes, key=lambda x: x['memory_percent'] or 0, reverse=True)[:limit]
+        
+        output = [f"{'PID':<8} {'Process Name':<25} {'Memory %':<10}"]
+        output.append("-" * 45)
+        for p in sorted_procs:
+            output.append(f"{p['pid']:<8} {p['name']:<25} {p['memory_percent']:.2f}%")
+            
+        return "\n".join(output)
+    except Exception as e:
+        log_tool(f"Error listing processes: {e}")
+        return f"Error listing processes: {str(e)}"
+
+@agent.tool_plain
+def is_application_open(app_name: str) -> bool:
+    """
+    Checks if a specific application is running.
+    Args:
+        app_name : The common name of the application (e.g., 'notepad', 'calculator', 'chrome', 'finder').
+    """
+    log_tool(f"Tool Invoked: is_application_open(app_name='{app_name}')")
+    # Iterate through all running processes
+    win_apps = {
+    "notepad": "notepad.exe",
+    "calculator": "calc.exe",
+    "chrome": "chrome.exe",
+    "edge": "msedge.exe"
+}
+    target = win_apps.get(app_name.lower(), app_name)
+    for process in psutil.process_iter(['name']):
+        try:
+            # Check if the process name matches target (case-insensitive)
+            if process.info['name'].lower() == target.lower():
+                return True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    return False
+
+@agent.tool_plain
+def close_application(app_name: str) -> str:
+    """
+    Finds and closes all instances of a running application.
+    Args:
+        app_name : The common name of the application (e.g., 'notepad', 'calculator', 'chrome', 'finder').
+    """
+    log_tool(f"Tool Invoked: close_application(app_name='{app_name}')")
+    closed_any = False
+    win_apps = {
+    "notepad": "notepad.exe",
+    "calculator": "calc.exe",
+    "chrome": "chrome.exe",
+    "edge": "msedge.exe"
+}
+    target = win_apps.get(app_name.lower(), app_name)
+    for process in psutil.process_iter(['pid', 'name']):
+        try:
+            if process.info['name'].lower() == target.lower():
+                log_tool(f"Found {app_name} (PID: {process.info['pid']}). Closing...")
+                
+                # Attempt a clean termination
+                process.terminate() 
+                closed_any = True
+                
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    if closed_any:
+        log_tool(f"Termination signals sent to {app_name}.")
+        return f"Termination signals sent to {app_name}."
+    else:
+        log_tool(f"{app_name} was not running.")
+        return f"{app_name} was not running."
 
 
 @agent.tool_plain
