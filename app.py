@@ -237,7 +237,7 @@ def close_application(app_name: str) -> str:
         return f"Action cancelled: User denied permission to close '{app_name}'."
 
     closed_any = False
-    win_apps = {"notepad": "notepad.exe", "calculator": "calc.exe", "chrome": "chrome.exe", "edge": "msedge.exe"}
+    win_apps = {"notepad": "notepad.exe", "calculator": "CalculatorApp.exe", "chrome": "chrome.exe", "edge": "msedge.exe"}
     target = win_apps.get(app_name.lower(), app_name)
 
     for process in psutil.process_iter(["pid", "name"]):
@@ -522,19 +522,25 @@ class LocalAIAssistantGUI(ctk.CTk):
             text_color=self.colors["text"],
             command=self.create_new_session,
         )
-        self.new_chat_btn.grid(row=0, column=0, padx=14, pady=(16, 12), sticky="ew")
+        self.new_chat_btn.grid(
+            row=0, column=0, padx=14, pady=(16, 12), sticky="ew"
+        )
 
-        # Scrollable session list
+        # --- CHANGE HERE: Use self.colors["sidebar"] instead of "transparent" ---
         self.sessions_scroll = ctk.CTkScrollableFrame(
-            self.sidebar_frame, fg_color="transparent", corner_radius=0
+            self.sidebar_frame, fg_color=self.colors["sidebar"], corner_radius=0
         )
         self.sessions_scroll.grid(row=1, column=0, sticky="nsew", padx=6, pady=4)
         self.sessions_scroll.grid_columnconfigure(0, weight=1)
 
-        # Bottom Theme & Status
+        # Bottom Theme & Status Button
         self.theme_button = ctk.CTkButton(
             self.sidebar_frame,
-            text="Switch to Light mode",
+            text=(
+                "Switch to Light mode"
+                if self.theme_mode == "Dark"
+                else "Switch to dark mode"
+            ),
             font=ctk.CTkFont(size=12),
             height=32,
             corner_radius=16,
@@ -544,7 +550,7 @@ class LocalAIAssistantGUI(ctk.CTk):
             command=self._toggle_theme,
         )
         self.theme_button.grid(row=2, column=0, padx=14, pady=14, sticky="ew")
-
+    
     def _build_chat_panel(self):
         self.chat_container = ctk.CTkFrame(self, fg_color=self.colors["chat"], corner_radius=0)
         self.chat_container.grid(row=0, column=1, sticky="nsew", padx=10, pady=15)
@@ -1071,14 +1077,24 @@ class LocalAIAssistantGUI(ctk.CTk):
         log_tool(f"Model successfully switched to {selected_model}.")
 
     def _toggle_theme(self):
+        # 1. Flip active theme mode
         self.theme_mode = "Dark" if self.theme_mode == "Light" else "Light"
         self.colors = self.THEME_COLORS[self.theme_mode]
-        ctk.set_appearance_mode(self.theme_mode)
 
+        # 2. Update window & sidebar containers FIRST
         self.configure(fg_color=self.colors["window"])
         self.sidebar_frame.configure(
-            fg_color=self.colors["sidebar"], border_color=self.colors["sidebar_border"]
+            fg_color=self.colors["sidebar"],
+            border_color=self.colors["sidebar_border"],
         )
+
+        # --- KEY FIX 1: Explicitly re-color the sessions scroll container ---
+        self.sessions_scroll.configure(fg_color=self.colors["sidebar"])
+
+        # 3. Inform CustomTkinter of appearance mode change
+        ctk.set_appearance_mode(self.theme_mode)
+
+        # 4. Update sidebar buttons
         self.new_chat_btn.configure(
             fg_color=self.colors["button"],
             hover_color=self.colors["button_hover"],
@@ -1090,10 +1106,21 @@ class LocalAIAssistantGUI(ctk.CTk):
             hover_color=self.colors["button_hover"],
             text_color=self.colors["text"],
         )
+
+        # --- KEY FIX 2: Update all existing session items in sidebar ---
+        for sid, btn in self.session_buttons.items():
+            btn.configure(
+                hover_color=self.colors["button_hover"],
+                text_color=self.colors["text"],
+            )
+        self._refresh_session_sidebar_highlight()
+
+        # 5. Update main chat area & input controls
         self.chat_container.configure(fg_color=self.colors["chat"])
         self.chat_box.configure(fg_color=self.colors["chat"])
         self.input_card.configure(
-            fg_color=self.colors["input"], border_color=self.colors["input_border"]
+            fg_color=self.colors["input"],
+            border_color=self.colors["input_border"],
         )
         self.plus_btn.configure(
             fg_color=self.colors["button"],
@@ -1101,7 +1128,8 @@ class LocalAIAssistantGUI(ctk.CTk):
             text_color=self.colors["text"],
         )
         self.entry.configure(
-            placeholder_text_color=self.colors["placeholder"], text_color=self.colors["text"]
+            placeholder_text_color=self.colors["placeholder"],
+            text_color=self.colors["text"],
         )
         self.model_selector.configure(
             fg_color=self.colors["button"],
@@ -1114,8 +1142,11 @@ class LocalAIAssistantGUI(ctk.CTk):
             hover_color=self.colors["button_hover"],
             text_color=self.colors["text"],
         )
+
+        # 6. Update tool activity panel
         self.log_container.configure(
-            fg_color=self.colors["panel"], border_color=self.colors["panel_border"]
+            fg_color=self.colors["panel"],
+            border_color=self.colors["panel_border"],
         )
         self.log_title.configure(text_color=self.colors["text"])
         self.clear_btn.configure(
@@ -1129,6 +1160,7 @@ class LocalAIAssistantGUI(ctk.CTk):
             border_color=self.colors["panel_border"],
         )
 
+        # 7. Update chat messages
         for bubble, label in self.user_message_widgets:
             bubble.configure(fg_color=self.colors["user_bubble"])
             label.configure(text_color=self.colors["text"])
@@ -1136,11 +1168,9 @@ class LocalAIAssistantGUI(ctk.CTk):
         for label, copy_button in self.assistant_message_widgets:
             label.configure(text_color=self.colors["text"])
             copy_button.configure(
-                hover_color=self.colors["copy_hover"], text_color=self.colors["copy_text"]
+                hover_color=self.colors["copy_hover"],
+                text_color=self.colors["copy_text"],
             )
-
-        self._refresh_session_sidebar_highlight()
-
 
 if __name__ == "__main__":
     app = LocalAIAssistantGUI()
