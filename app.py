@@ -19,7 +19,7 @@ from pydantic_ai.providers.ollama import OllamaProvider
 # ---------------------------------------------------------
 # 1. DIRECTORY, SECURITY & WORKSPACE SETTINGS
 # ---------------------------------------------------------
-SESSIONS_DIR = Path("sessions")
+SESSIONS_DIR = Path.home() / ".local_ai_assistant" / "sessions"
 SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_CONTEXT_MESSAGES = 10  # Sliding window: keeps the latest 10 messages
@@ -32,8 +32,6 @@ KNOWN_FOLDERS = {
 
 ALLOWED_ROOTS = [
     Path.home(),
-    Path.cwd(),
-    Path("D:/Coding"),
 ]
 
 _gui_logger_callback = None
@@ -568,7 +566,7 @@ class LocalAIAssistantGUI(ctk.CTk):
 
         self.logo_label = ctk.CTkLabel(
             self.welcome_frame,
-            text="🦙",
+            text="🤖",
             font=ctk.CTkFont(size=56),
             text_color=self.colors["text"],
             fg_color=self.colors["logo"],

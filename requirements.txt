@@ -1,0 +1,4 @@
+customtkinter
+pydantic-ai-slim[openai]
+psutil
+ollama
